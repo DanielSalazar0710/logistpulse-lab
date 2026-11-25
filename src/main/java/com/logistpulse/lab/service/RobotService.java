@@ -23,13 +23,22 @@ public class RobotService {
         return robots.findAll().stream().map(RobotDto::from).toList();
     }
 
+    @Transactional(readOnly = true)
+    public RobotDto get(Long id) {
+        return RobotDto.from(find(id));
+    }
+
     @Transactional
     public RobotDto charge(Long id) {
-        Robot robot = robots.findById(id).orElseThrow(() -> new ApiException(404, "Robot " + id + " no existe"));
+        Robot robot = find(id);
         if (robot.getStatus() == RobotStatus.BUSY) {
             throw new ApiException(409, "El robot " + robot.getCode() + " está en misión; no puede cargar");
         }
         robot.setBattery(100);
         return RobotDto.from(robot);
+    }
+
+    private Robot find(Long id) {
+        return robots.findById(id).orElseThrow(() -> new ApiException(404, "Robot " + id + " no existe"));
     }
 }

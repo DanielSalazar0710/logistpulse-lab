@@ -8,6 +8,7 @@ import com.logistpulse.lab.domain.OrderStatus;
 import com.logistpulse.lab.service.OrderService;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
@@ -67,6 +68,14 @@ public class OrderResource {
         OrderDto created = service.create(input);
         URI location = uri.getAbsolutePathBuilder().path(String.valueOf(created.id())).build();
         return Response.created(location).entity(linked(created, uri)).build();   // 201 + Location
+    }
+
+    /** Parte 1.2: solo se pueden borrar pedidos CREATED → 204; en otro estado 409; si no existe 404. */
+    @DELETE
+    @Path("/{id}")
+    public Response delete(@PathParam("id") Long id) {
+        service.delete(id);
+        return Response.noContent().build();
     }
 
     @POST

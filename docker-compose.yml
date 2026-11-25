@@ -62,6 +62,16 @@ services:
       FLEET_AUTO_STARTUP: ${FLEET_AUTO_STARTUP:-true}
     ports:
       - "8080:8080"
+    # Reto Parte 9.4: la guía asume que la imagen JRE no trae curl (la versión actual sí lo trae, pero no conviene
+    # depender de eso: una imagen más mínima lo quitaría). Solo usamos bash: /dev/tcp abre un socket TCP y se envía
+    # una petición HTTP/1.0 a mano. Se usa liveness (no /actuator/health): si Redis o RabbitMQ caen, la API sigue
+    # viva y no debe marcarse unhealthy ni reiniciarse por una dependencia externa.
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /actuator/health/liveness HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 && grep -q '\"status\":\"UP\"' <&3"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 40s
 
   prometheus:
     image: prom/prometheus:v3.0.1
@@ -71,7 +81,8 @@ services:
     ports:
       - "9090:9090"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
   grafana:
     image: grafana/grafana:11.4.0

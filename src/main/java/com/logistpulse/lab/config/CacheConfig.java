@@ -4,9 +4,12 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CachingConfigurer;
 import org.springframework.cache.interceptor.CacheErrorHandler;
+import org.springframework.cache.interceptor.CacheResolver;
 import org.springframework.context.annotation.Configuration;
 
 /**
@@ -21,10 +24,20 @@ public class CacheConfig implements CachingConfigurer {
     private static final Logger log = LoggerFactory.getLogger(CacheConfig.class);
 
     private final Counter errors;
+    private final ObjectProvider<CacheManager> cacheManager;
 
-    public CacheConfig(MeterRegistry registry) {
+    public CacheConfig(MeterRegistry registry, ObjectProvider<CacheManager> cacheManager) {
+        this.cacheManager = cacheManager;
         this.errors = Counter.builder("logistpulse.cache.errors")
                 .description("Errores de la caché de rutas tratados como cache-miss").register(registry);
+    }
+
+    /** Cada caché se envuelve en {@link GuardedCache}: tras un fallo deja de tocar Redis durante unos segundos. */
+    @Override
+    public CacheResolver cacheResolver() {
+        return context -> context.getOperation().getCacheNames().stream()
+                .map(name -> (Cache) new GuardedCache(cacheManager.getObject().getCache(name)))
+                .toList();
     }
 
     @Override

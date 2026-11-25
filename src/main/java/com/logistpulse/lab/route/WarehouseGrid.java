@@ -51,6 +51,14 @@ public final class WarehouseGrid {
         return walkable(p.x(), p.y());
     }
 
+    /**
+     * Versión del plano para las claves de caché: huella de las filas y de los costos.
+     * Cambia sola si alguien edita el layout o CONGESTED_COST, así nunca se sirve una ruta de otro plano.
+     */
+    public String version() {
+        return Integer.toHexString(java.util.Objects.hash(rows, CONGESTED_COST));
+    }
+
     /** Costo de entrar a la celda. Solo válido si walkable(x, y). */
     public int cost(int x, int y) {
         return rows.get(y).charAt(x) == ',' ? CONGESTED_COST : 1;

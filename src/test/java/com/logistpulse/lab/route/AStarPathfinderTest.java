@@ -67,4 +67,61 @@ class AStarPathfinderTest {
             prev = p;
         }
     }
+
+    // ---- Reto 5.4: 8 vecinos ----
+
+    private final AStarPathfinder diagonalFinder = new AStarPathfinder(grid, true);
+
+    @Test
+    void diagonalOnOpenFloorCostsSqrt2PerStep() {
+        WarehouseGrid open = new WarehouseGrid(java.util.List.of("....", "....", "....", "...."));
+        RouteDto r = new AStarPathfinder(open, true).find(new Point(0, 0), new Point(3, 3)).orElseThrow();
+        assertThat(r.steps()).isEqualTo(3);                    // 3 pasos en diagonal
+        assertThat(r.cost()).isEqualTo(4);                     // 3·√2 = 4,24 → 4
+    }
+
+    @Test
+    void diagonalNeverCostsMoreNorTakesMoreSteps() {
+        RouteDto four = finder.find(new Point(0, 0), new Point(11, 7)).orElseThrow();
+        RouteDto eight = diagonalFinder.find(new Point(0, 0), new Point(11, 7)).orElseThrow();
+        assertThat(eight.cost()).isLessThanOrEqualTo(four.cost());
+        assertThat(eight.steps()).isLessThan(four.steps());
+    }
+
+    @Test
+    void diagonalDoesNotCutCornersBetweenShelves() {
+        RouteDto r = diagonalFinder.find(new Point(0, 0), new Point(10, 5)).orElseThrow();
+        Point prev = new Point(0, 0);
+        for (Point p : r.path()) {
+            int dx = p.x() - prev.x();
+            int dy = p.y() - prev.y();
+            assertThat(Math.max(Math.abs(dx), Math.abs(dy))).isEqualTo(1);
+            if (dx != 0 && dy != 0) {
+                assertThat(grid.walkable(prev.x() + dx, prev.y())).isTrue();
+                assertThat(grid.walkable(prev.x(), prev.y() + dy)).isTrue();
+            }
+            prev = p;
+        }
+    }
+
+    @Test
+    void octileHeuristicNeverOverestimatesOnOpenFloor() {
+        WarehouseGrid open = new WarehouseGrid(java.util.List.of("......", "......", "......", "......"));
+        AStarPathfinder f = new AStarPathfinder(open, true);
+        Point goal = new Point(5, 3);
+        for (int x = 0; x < 6; x++) {
+            for (int y = 0; y < 4; y++) {
+                double real = Math.max(Math.abs(5 - x), Math.abs(3 - y)) - Math.min(Math.abs(5 - x), Math.abs(3 - y))
+                        + Math.sqrt(2) * Math.min(Math.abs(5 - x), Math.abs(3 - y));
+                assertThat(f.heuristic(x, y, goal)).isLessThanOrEqualTo(real + 1e-9);
+            }
+        }
+    }
+
+    @Test
+    void gridVersionChangesWhenLayoutChanges() {
+        WarehouseGrid other = new WarehouseGrid(java.util.List.of("....", ".##."));
+        assertThat(grid.version()).isNotEqualTo(other.version());
+        assertThat(grid.version()).isEqualTo(WarehouseGrid.defaultLayout().version());
+    }
 }

@@ -28,8 +28,11 @@ public class RouteResource {
     public RouteDto route(@QueryParam("fromX") @DefaultValue("0") int fromX,
                           @QueryParam("fromY") @DefaultValue("0") int fromY,
                           @QueryParam("toX") int toX,
-                          @QueryParam("toY") int toY) {
-        return planner.plan(new Point(fromX, fromY), new Point(toX, toY));
+                          @QueryParam("toY") int toY,
+                          @QueryParam("diagonal") @DefaultValue("false") boolean diagonal) {
+        Point from = new Point(fromX, fromY);
+        Point to = new Point(toX, toY);
+        return diagonal ? planner.planDiagonal(from, to) : planner.plan(from, to);
     }
 
     @GET

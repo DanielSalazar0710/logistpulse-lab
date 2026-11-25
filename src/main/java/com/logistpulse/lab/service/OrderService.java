@@ -59,7 +59,9 @@ public class OrderService {
         this.planner = planner;
         this.carrier = carrier;
         this.events = events;
-        this.created = Counter.builder("logistpulse.orders.created").description("Pedidos creados").register(registry);
+        this.created = // Parte 8: "logistpulse.orders.created" se exportaba como logistpulse_orders_total (Prometheus reserva el
+        // sufijo _created) y el panel que buscaba logistpulse_orders_created_total salía vacío.
+        Counter.builder("logistpulse.orders.registered").description("Pedidos creados").register(registry);
         this.dispatched = Counter.builder("logistpulse.orders.dispatched").description("Pedidos despachados").register(registry);
         this.etaFallback = Counter.builder("logistpulse.carrier.fallback")
                 .description("Despachos que usaron el ETA local porque el transportista no respondió").register(registry);
@@ -183,6 +185,7 @@ public class OrderService {
             order.setStatus(OrderStatus.DISPATCHED);
             order.setRobot(robot);
             order.setEtaMinutes(eta);
+            order.setDispatchedAt(java.time.Instant.now());
             robot.setStatus(RobotStatus.BUSY);
             dispatched.increment();
             events.publish(order.getId());          // Parte 7.4: al outbox, en esta misma transacción

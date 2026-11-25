@@ -1,0 +1,35 @@
+# Reto Parte 8.6 y SLOs de la Parte 8.5. Se ven en Prometheus -> Alerts (http://localhost:9090/alerts).
+groups:
+  - name: logistpulse
+    rules:
+      - alert: SinAMRLibres
+        expr: logistpulse_robots_idle == 0
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: "No hay AMR libres desde hace 1 minuto"
+          description: "Los despachos responden 409 hasta que se cargue o libere un AMR."
+
+      - alert: DespachoDisponibilidadBaja
+        expr: |
+          sum(rate(http_server_requests_seconds_count{uri="/api/orders/{id}/dispatch",status=~"5.."}[5m]))
+            / sum(rate(http_server_requests_seconds_count{uri="/api/orders/{id}/dispatch"}[5m])) > 0.005
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Más del 0,5 % de los despachos falla con 5xx (SLO 1)"
+
+      - alert: DespachoLento
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{uri="/api/orders/{id}/dispatch"}[5m]))) > 0.5
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "p95 del despacho por encima de 500 ms (SLO 2)"
+
+      - alert: PedidoAtascadoEnDispatched
+        expr: logistpulse_orders_dispatched_oldest_age_seconds > 60
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "Un pedido lleva más de 60 s en DISPATCHED (SLO 3): ¿evento perdido o flota detenida?"

@@ -52,6 +52,9 @@ public class Order {
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
+    /** Parte 8.5: momento del despacho, para medir cuánto tiempo pasa un pedido en DISPATCHED. */
+    private Instant dispatchedAt;
+
     @Version
     private Long version;
 
@@ -79,4 +82,6 @@ public class Order {
     public Integer getEtaMinutes() { return etaMinutes; }
     public void setEtaMinutes(Integer etaMinutes) { this.etaMinutes = etaMinutes; }
     public Instant getCreatedAt() { return createdAt; }
+    public Instant getDispatchedAt() { return dispatchedAt; }
+    public void setDispatchedAt(Instant dispatchedAt) { this.dispatchedAt = dispatchedAt; }
 }

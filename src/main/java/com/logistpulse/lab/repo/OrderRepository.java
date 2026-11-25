@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
@@ -26,4 +27,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Page<Order> findByStatusAndCustomerNameContainingIgnoreCase(OrderStatus status, String customer, Pageable pageable);
 
     boolean existsByCode(String code);
+
+    long countByStatus(OrderStatus status);
+
+    /** Parte 8.5: despacho más antiguo que sigue en DISPATCHED (null si no hay ninguno). */
+    @Query("select min(o.dispatchedAt) from Order o where o.status = com.logistpulse.lab.domain.OrderStatus.DISPATCHED")
+    java.time.Instant oldestDispatchedAt();
 }

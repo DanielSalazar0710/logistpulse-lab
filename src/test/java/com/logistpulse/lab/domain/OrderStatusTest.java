@@ -5,6 +5,7 @@ import static com.logistpulse.lab.domain.OrderStatus.CREATED;
 import static com.logistpulse.lab.domain.OrderStatus.DELIVERED;
 import static com.logistpulse.lab.domain.OrderStatus.DISPATCHED;
 import static com.logistpulse.lab.domain.OrderStatus.IN_TRANSIT;
+import static com.logistpulse.lab.domain.OrderStatus.RETURNED;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
@@ -32,7 +33,43 @@ class OrderStatusTest {
 
     @Test
     void terminalStatesHaveNoExit() {
-        assertThat(DELIVERED.next()).isEmpty();
         assertThat(CANCELLED.next()).isEmpty();
+        assertThat(RETURNED.next()).isEmpty();
+    }
+
+    // ---- Parte 4.1: estado RETURNED ----
+
+    @Test
+    void deliveredOrderCanBeReturned() {
+        assertThat(DELIVERED.canGoTo(RETURNED)).isTrue();
+        assertThat(DELIVERED.next()).containsExactly(RETURNED);
+    }
+
+    @Test
+    void onlyDeliveredOrdersCanBeReturned() {
+        for (OrderStatus s : OrderStatus.values()) {
+            assertThat(s.canGoTo(RETURNED)).as("%s -> RETURNED", s).isEqualTo(s == DELIVERED);
+        }
+    }
+
+    @Test
+    void returnedIsTerminal() {
+        for (OrderStatus s : OrderStatus.values()) {
+            assertThat(RETURNED.canGoTo(s)).as("RETURNED -> %s", s).isFalse();
+        }
+    }
+
+    @Test
+    void returnedCannotBeRedeliveredNorCancelled() {
+        assertThat(RETURNED.canGoTo(DELIVERED)).isFalse();
+        assertThat(RETURNED.canGoTo(CANCELLED)).isFalse();
+        assertThat(DELIVERED.canGoTo(CANCELLED)).isFalse();
+    }
+
+    @Test
+    void noStateGoesBackToCreated() {
+        for (OrderStatus s : OrderStatus.values()) {
+            assertThat(s.canGoTo(CREATED)).as("%s -> CREATED", s).isFalse();
+        }
     }
 }

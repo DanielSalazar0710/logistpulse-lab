@@ -15,5 +15,6 @@ public class JerseyConfig extends ResourceConfig {
         register(OptimisticLockMapper.class);
         register(ConstraintViolationMapper.class);
         register(ParamExceptionMapper.class);
+        register(DataIntegrityMapper.class);
     }
 }

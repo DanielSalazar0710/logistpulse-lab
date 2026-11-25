@@ -176,7 +176,7 @@ public class OrderService {
         orders.delete(order);
     }
 
-    /** Transiciones restantes: IN_TRANSIT, DELIVERED, CANCELLED. Valida contra la máquina de estados. */
+    /** Transiciones restantes: IN_TRANSIT, DELIVERED, CANCELLED, RETURNED. Valida contra la máquina de estados. */
     @Transactional
     public OrderDto transition(Long id, OrderStatus to) {
         if (to == OrderStatus.DISPATCHED) {

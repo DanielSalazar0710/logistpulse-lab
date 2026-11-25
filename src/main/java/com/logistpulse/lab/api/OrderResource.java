@@ -39,20 +39,23 @@ public class OrderResource {
 
     @GET
     public PageDto<OrderDto> list(@QueryParam("status") OrderStatus status,
+                                  @QueryParam("customer") String customer,
+                                  @QueryParam("sort") String sort,
                                   @QueryParam("page") @DefaultValue("0") int page,
                                   @QueryParam("size") @DefaultValue("10") int size,
                                   @Context UriInfo uri) {
-        PageDto<OrderDto> result = service.list(status, page, size);
+        PageDto<OrderDto> result = service.list(status, customer, sort, page, size);
+        Filters f = new Filters(status, customer, sort);
         Map<String, String> links = new LinkedHashMap<>();
-        links.put("self", pageUrl(uri, status, result.page(), result.size()));
-        links.put("first", pageUrl(uri, status, 0, result.size()));
+        links.put("self", pageUrl(uri, f, result.page(), result.size()));
+        links.put("first", pageUrl(uri, f, 0, result.size()));
         if (result.page() > 0) {
-            links.put("prev", pageUrl(uri, status, result.page() - 1, result.size()));
+            links.put("prev", pageUrl(uri, f, result.page() - 1, result.size()));
         }
         if (result.page() + 1 < result.totalPages()) {
-            links.put("next", pageUrl(uri, status, result.page() + 1, result.size()));
+            links.put("next", pageUrl(uri, f, result.page() + 1, result.size()));
         }
-        links.put("last", pageUrl(uri, status, Math.max(result.totalPages() - 1, 0), result.size()));
+        links.put("last", pageUrl(uri, f, Math.max(result.totalPages() - 1, 0), result.size()));
         return new PageDto<>(result.content().stream().map(o -> linked(o, uri)).toList(),
                 result.page(), result.size(), result.totalElements(), result.totalPages(), links);
     }
@@ -107,10 +110,19 @@ public class OrderResource {
         return o.withLinks(links);
     }
 
-    private String pageUrl(UriInfo uri, OrderStatus status, int page, int size) {
+    /** Los enlaces de navegación conservan los filtros y el orden con que se pidió la página. */
+    private record Filters(OrderStatus status, String customer, String sort) { }
+
+    private String pageUrl(UriInfo uri, Filters f, int page, int size) {
         var b = uri.getBaseUriBuilder().path("api/orders").queryParam("page", page).queryParam("size", size);
-        if (status != null) {
-            b.queryParam("status", status.name());
+        if (f.status() != null) {
+            b.queryParam("status", f.status().name());
+        }
+        if (f.customer() != null && !f.customer().isBlank()) {
+            b.queryParam("customer", f.customer());
+        }
+        if (f.sort() != null && !f.sort().isBlank()) {
+            b.queryParam("sort", f.sort());
         }
         return b.build().toString();
     }

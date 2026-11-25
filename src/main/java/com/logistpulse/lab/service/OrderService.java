@@ -20,6 +20,8 @@ import com.logistpulse.lab.route.RoutePlanner;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeSet;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -77,14 +79,61 @@ public class OrderService {
         return OrderDto.from(find(id));
     }
 
+    /** Tamaño máximo de página: lo impone el servicio, no solo el recurso (ver Parte 3, reto). */
+    public static final int MAX_PAGE_SIZE = 100;
+
+    /** Parte 3.2: lista blanca de campos ordenables → propiedad de la entidad. El cliente nunca ve nombres internos. */
+    static final Map<String, String> SORTABLE = Map.of(
+            "id", "id",
+            "code", "code",
+            "customer", "customerName",
+            "status", "status",
+            "createdAt", "createdAt",
+            "eta", "etaMinutes");
+
     @Transactional(readOnly = true)
     public PageDto<OrderDto> list(OrderStatus status, int page, int size) {
-        int safeSize = Math.min(Math.max(size, 1), 100);
+        return list(status, null, null, page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public PageDto<OrderDto> list(OrderStatus status, String customer, String sort, int page, int size) {
+        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         int safePage = Math.max(page, 0);
-        Pageable pageable = PageRequest.of(safePage, safeSize, Sort.by("id").descending());
-        Page<Order> result = status == null ? orders.findAll(pageable) : orders.findByStatus(status, pageable);
+        Pageable pageable = PageRequest.of(safePage, safeSize, parseSort(sort));
+        boolean byCustomer = customer != null && !customer.isBlank();
+        Page<Order> result;
+        if (status != null && byCustomer) {
+            result = orders.findByStatusAndCustomerNameContainingIgnoreCase(status, customer.trim(), pageable);
+        } else if (status != null) {
+            result = orders.findByStatus(status, pageable);
+        } else if (byCustomer) {
+            result = orders.findByCustomerNameContainingIgnoreCase(customer.trim(), pageable);
+        } else {
+            result = orders.findAll(pageable);
+        }
         List<OrderDto> content = result.getContent().stream().map(OrderDto::from).toList();
-        return new PageDto<>(content, safePage, safeSize, result.getTotalElements(), result.getTotalPages(), java.util.Map.of());
+        return new PageDto<>(content, safePage, safeSize, result.getTotalElements(), result.getTotalPages(), Map.of());
+    }
+
+    /** "createdAt,desc" → Sort; campo fuera de la lista blanca → 400. Desempate por id para que la paginación sea estable. */
+    static Sort parseSort(String sort) {
+        if (sort == null || sort.isBlank()) {
+            return Sort.by("id").descending();
+        }
+        String[] parts = sort.split(",");
+        String field = parts[0].trim();
+        String property = SORTABLE.get(field);
+        if (property == null) {
+            throw new ApiException(400, "No se puede ordenar por '" + field + "'. Campos permitidos: "
+                    + new TreeSet<>(SORTABLE.keySet()));
+        }
+        String dir = parts.length > 1 ? parts[1].trim().toLowerCase() : "asc";
+        if (!dir.equals("asc") && !dir.equals("desc")) {
+            throw new ApiException(400, "Dirección de orden inválida '" + dir + "' (usa asc o desc)");
+        }
+        Sort primary = dir.equals("desc") ? Sort.by(property).descending() : Sort.by(property).ascending();
+        return property.equals("id") ? primary : primary.and(Sort.by("id").descending());
     }
 
     /**

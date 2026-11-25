@@ -18,5 +18,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @EntityGraph(attributePaths = {"warehouse", "robot"})
     Page<Order> findByStatus(OrderStatus status, Pageable pageable);
 
+    // Parte 3.1: filtro ?customer= (contiene, sin distinguir mayúsculas) con métodos derivados.
+    @EntityGraph(attributePaths = {"warehouse", "robot"})
+    Page<Order> findByCustomerNameContainingIgnoreCase(String customer, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"warehouse", "robot"})
+    Page<Order> findByStatusAndCustomerNameContainingIgnoreCase(OrderStatus status, String customer, Pageable pageable);
+
     boolean existsByCode(String code);
 }

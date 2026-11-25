@@ -1,53 +1,32 @@
 package com.logistpulse.lab.messaging;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Value;
+import com.logistpulse.lab.domain.OutboxEvent;
+import com.logistpulse.lab.repo.OutboxRepository;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Publica "pedido despachado" DESPUÉS del commit (así el consumidor nunca ve un pedido que aún no existe).
- * Con lab.messaging.enabled=false (modo lite) solo registra el evento en el log.
+ * Parte 7.4 · Ya no publica "después del commit": registra el evento en la tabla outbox_event dentro de la
+ * transacción del despacho (Propagation.MANDATORY: llamarlo fuera de una transacción es un error de programación).
  *
- * Limitación didáctica: si el proceso cae entre el commit y el envío, el evento se pierde.
- * La solución es el patrón Outbox (ver LAB.md, Parte 7).
+ * Antes (afterCommit) quedaba una ventana: commit hecho y envío fallido o proceso caído = evento perdido, pedido
+ * DISPATCHED para siempre. Ahora el evento es tan durable como el cambio de estado y {@link OutboxRelay} lo
+ * publica cuando RabbitMQ esté disponible (entrega "al menos una vez").
  */
 @Component
 public class DispatchEventPublisher {
 
-    private static final Logger log = LoggerFactory.getLogger(DispatchEventPublisher.class);
+    public static final String ORDER_DISPATCHED = "order.dispatched";
 
-    private final boolean enabled;
-    private final ObjectProvider<RabbitTemplate> rabbit;
+    private final OutboxRepository outbox;
 
-    public DispatchEventPublisher(@Value("${lab.messaging.enabled:false}") boolean enabled,
-                                  ObjectProvider<RabbitTemplate> rabbit) {
-        this.enabled = enabled;
-        this.rabbit = rabbit;
+    public DispatchEventPublisher(OutboxRepository outbox) {
+        this.outbox = outbox;
     }
 
-    public void publishAfterCommit(Long orderId) {
-        if (!enabled) {
-            log.info("[lite] evento order.dispatched id={} (RabbitMQ desactivado)", orderId);
-            return;
-        }
-        Runnable send = () -> {
-            rabbit.getObject().convertAndSend(RabbitTopology.DISPATCHED_QUEUE, String.valueOf(orderId));
-            log.info("Evento order.dispatched publicado id={}", orderId);
-        };
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    send.run();
-                }
-            });
-        } else {
-            send.run();
-        }
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void publish(Long orderId) {
+        outbox.save(new OutboxEvent(ORDER_DISPATCHED, orderId, String.valueOf(orderId)));
     }
 }

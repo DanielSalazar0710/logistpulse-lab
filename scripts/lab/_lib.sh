@@ -19,3 +19,5 @@ reset_fleet() {
 }
 # Crea un pedido y devuelve su id
 new_order() { curl -s -X POST -H "$J" -d "{\"customer\":\"${1:-Prueba}\",\"destX\":${2:-10},\"destY\":${3:-5}}" "$HOST/api/orders" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2; }
+wait_api() { for i in $(seq 1 60); do [ "$(curl -s -o /dev/null -w '%{http_code}' "$HOST/actuator/health")" = 200 ] && return; sleep 2; done; }
+colas() { docker compose exec -T rabbitmq rabbitmqctl -q list_queues name messages_ready messages_unacknowledged consumers | column -t; }

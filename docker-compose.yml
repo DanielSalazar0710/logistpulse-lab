@@ -59,6 +59,7 @@ services:
       REDIS_HOST: redis
       RABBIT_HOST: rabbitmq
       CARRIER_URL: http://carrier-mock:8080
+      FLEET_AUTO_STARTUP: ${FLEET_AUTO_STARTUP:-true}
     ports:
       - "8080:8080"
 

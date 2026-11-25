@@ -185,7 +185,7 @@ public class OrderService {
             order.setEtaMinutes(eta);
             robot.setStatus(RobotStatus.BUSY);
             dispatched.increment();
-            events.publishAfterCommit(order.getId());
+            events.publish(order.getId());          // Parte 7.4: al outbox, en esta misma transacción
             return OrderDto.from(order);
         });
     }
@@ -200,6 +200,21 @@ public class OrderService {
         return robots.findByStatusAndBatteryGreaterThanEqualOrderByIdAsc(RobotStatus.IDLE, MIN_BATTERY)
                 .stream().findFirst()
                 .orElseThrow(() -> new ApiException(409, "No hay AMR disponible (libre y con batería ≥ " + MIN_BATTERY + "%)"));
+    }
+
+    /**
+     * Parte 7.5: DISPATCHED → IN_TRANSIT solo si el pedido sigue DISPATCHED. Devuelve false (sin excepción) si el
+     * evento es duplicado o llegó tarde, para que el consumidor confirme el mensaje y no lo reencole.
+     */
+    @Transactional
+    public boolean startTransitIfDispatched(Long id) {
+        return orders.findById(id)
+                .filter(o -> o.getStatus() == OrderStatus.DISPATCHED)
+                .map(o -> {
+                    o.setStatus(OrderStatus.IN_TRANSIT);
+                    return true;
+                })
+                .orElse(false);
     }
 
     /** Borrado físico permitido solo mientras el pedido no ha comprometido recursos (estado CREATED). */

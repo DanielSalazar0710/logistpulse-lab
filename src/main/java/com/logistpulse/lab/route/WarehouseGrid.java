@@ -5,10 +5,13 @@ import java.util.List;
 /**
  * Plano del almacén. Leyenda:
  *   '.' pasillo libre (costo 1)
- *   ',' zona congestionada (costo 5)
+ *   ',' zona congestionada (costo CONGESTED_COST)
  *   '#' estantería / obstáculo (bloqueado)
  */
 public final class WarehouseGrid {
+
+    /** Parte 5.3: costo de cruzar la zona congestionada (antes 5). Debe ser >= 1 para que Manhattan sea admisible. */
+    public static final int CONGESTED_COST = 2;
 
     private final List<String> rows;
     private final int width;
@@ -50,6 +53,6 @@ public final class WarehouseGrid {
 
     /** Costo de entrar a la celda. Solo válido si walkable(x, y). */
     public int cost(int x, int y) {
-        return rows.get(y).charAt(x) == ',' ? 5 : 1;
+        return rows.get(y).charAt(x) == ',' ? CONGESTED_COST : 1;
     }
 }

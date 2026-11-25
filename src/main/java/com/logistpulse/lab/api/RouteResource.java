@@ -36,6 +36,6 @@ public class RouteResource {
     @Path("/grid")
     public GridDto grid() {
         WarehouseGrid g = planner.grid();
-        return new GridDto(g.width(), g.height(), g.rows(), ". libre (1) · , congestionado (5) · # bloqueado");
+        return new GridDto(g.width(), g.height(), g.rows(), ". libre (1) · , congestionado (" + WarehouseGrid.CONGESTED_COST + ") · # bloqueado");
     }
 }

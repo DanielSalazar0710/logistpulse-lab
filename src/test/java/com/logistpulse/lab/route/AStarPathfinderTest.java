@@ -36,11 +36,26 @@ class AStarPathfinderTest {
 
     @Test
     void avoidsCongestedZoneWhenDetourIsCheaper() {
-        // Directo por la zona congestionada costaría 16; rodeando por la fila 2 cuesta 6.
+        // Directo por la zona congestionada costaría 2+2+2+1 = 7 (con costo 5 eran 16); rodeando por la fila 2 cuesta 6.
         Optional<RouteDto> r = finder.find(new Point(3, 3), new Point(7, 3));
         assertThat(r).isPresent();
         assertThat(r.get().cost()).isEqualTo(6);
         assertThat(r.get().path()).noneMatch(p -> grid.rows().get(p.y()).charAt(p.x()) == ',');
+    }
+
+    @Test
+    void withCost2CrossingTheZoneBecomesCheaper() {
+        // Parte 5.3: de (4,4) a (6,4) cruzar cuesta 2+2 = 4; rodear por la fila 5 cuesta 1+1+1+2 = 5.
+        // Con el costo original (5) era al revés: cruzar 10 y rodear 8.
+        RouteDto r = finder.find(new Point(4, 4), new Point(6, 4)).orElseThrow();
+        assertThat(r.cost()).isEqualTo(4);
+        assertThat(r.path()).containsExactly(new Point(5, 4), new Point(6, 4));
+    }
+
+    @Test
+    void congestedCellCostsTheConfiguredValue() {
+        assertThat(grid.cost(5, 3)).isEqualTo(WarehouseGrid.CONGESTED_COST).isEqualTo(2);
+        assertThat(grid.cost(0, 0)).isEqualTo(1);
     }
 
     @Test

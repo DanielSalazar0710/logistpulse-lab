@@ -17,6 +17,57 @@
       }
     },
     {
+      "name": "Parte 6.4: transportista caído con 503 permanente (LP-FAIL*): 1 intento + 2 reintentos",
+      "priority": 1,
+      "request": {
+        "method": "GET",
+        "urlPath": "/carrier/eta",
+        "queryParameters": { "code": { "matches": "LP-FAIL.*" } }
+      },
+      "response": { "status": 503, "body": "Servicio no disponible" }
+    },
+    {
+      "name": "Parte 6.4: código desconocido para el transportista (LP-BAD*): 404, no se reintenta",
+      "priority": 1,
+      "request": {
+        "method": "GET",
+        "urlPath": "/carrier/eta",
+        "queryParameters": { "code": { "matches": "LP-BAD.*" } }
+      },
+      "response": { "status": 404, "body": "Pedido desconocido" }
+    },
+    {
+      "name": "Parte 6.4: fallo transitorio (LP-FLAKY*): primer intento 503, el reintento responde 200",
+      "priority": 1,
+      "scenarioName": "flaky",
+      "requiredScenarioState": "Started",
+      "newScenarioState": "recuperado",
+      "request": {
+        "method": "GET",
+        "urlPath": "/carrier/eta",
+        "queryParameters": { "code": { "matches": "LP-FLAKY.*" } }
+      },
+      "response": { "status": 503, "body": "Sobrecarga momentánea" }
+    },
+    {
+      "name": "Parte 6.4: fallo transitorio (LP-FLAKY*), segunda llamada",
+      "priority": 1,
+      "scenarioName": "flaky",
+      "requiredScenarioState": "recuperado",
+      "newScenarioState": "Started",
+      "request": {
+        "method": "GET",
+        "urlPath": "/carrier/eta",
+        "queryParameters": { "code": { "matches": "LP-FLAKY.*" } }
+      },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "jsonBody": { "code": "{{request.query.code}}", "etaMinutes": 31 },
+        "transformers": ["response-template"]
+      }
+    },
+    {
       "name": "ETA normal",
       "priority": 5,
       "request": {

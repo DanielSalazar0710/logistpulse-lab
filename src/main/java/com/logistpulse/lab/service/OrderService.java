@@ -28,7 +28,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class OrderService {
@@ -44,10 +46,13 @@ public class OrderService {
     private final DispatchEventPublisher events;
     private final Counter created;
     private final Counter dispatched;
+    private final Counter etaFallback;
+    private final TransactionTemplate readTx;
+    private final TransactionTemplate writeTx;
 
     public OrderService(OrderRepository orders, RobotRepository robots, WarehouseRepository warehouses,
                         RoutePlanner planner, CarrierClient carrier, DispatchEventPublisher events,
-                        MeterRegistry registry) {
+                        MeterRegistry registry, PlatformTransactionManager txManager) {
         this.orders = orders;
         this.robots = robots;
         this.warehouses = warehouses;
@@ -56,6 +61,11 @@ public class OrderService {
         this.events = events;
         this.created = Counter.builder("logistpulse.orders.created").description("Pedidos creados").register(registry);
         this.dispatched = Counter.builder("logistpulse.orders.dispatched").description("Pedidos despachados").register(registry);
+        this.etaFallback = Counter.builder("logistpulse.carrier.fallback")
+                .description("Despachos que usaron el ETA local porque el transportista no respondió").register(registry);
+        this.readTx = new TransactionTemplate(txManager);
+        this.readTx.setReadOnly(true);
+        this.writeTx = new TransactionTemplate(txManager);
     }
 
     @Transactional
@@ -136,33 +146,60 @@ public class OrderService {
         return property.equals("id") ? primary : primary.and(Sort.by("id").descending());
     }
 
+    /** Lo que se necesita saber del pedido antes de salir a la red (sin entidades JPA fuera de la transacción). */
+    private record DispatchRequest(String code, Point origin, Point destination) { }
+
     /**
      * CREATED → DISPATCHED: asigna el AMR libre con batería suficiente, calcula ruta y ETA y publica el evento.
-     * Ojo (ejercicio): hay una llamada HTTP al transportista dentro de la transacción.
+     *
+     * Parte 6.3 (refactor de la "trampa deliberada"): antes todo ocurría dentro de una sola @Transactional y la
+     * llamada HTTP al transportista (hasta 2 s, más reintentos) retenía una conexión de la pool y la transacción
+     * abierta ("idle in transaction" en Postgres). Ahora son tres fases:
+     *   1. transacción corta de solo lectura: valida el estado y que haya AMR (falla rápido, sin tocar la red);
+     *   2. SIN transacción: ruta A* (caché) y ETA del transportista (red, timeouts, reintentos);
+     *   3. transacción corta de escritura: vuelve a validar (el mundo pudo cambiar durante la fase 2), toma el
+     *      AMR y guarda. El bloqueo optimista (@Version) sigue protegiendo contra despachos simultáneos.
      */
-    @Transactional
     public OrderDto dispatch(Long id) {
-        Order order = find(id);
+        DispatchRequest req = readTx.execute(status -> {
+            Order order = find(id);
+            checkCanDispatch(order);
+            pickRobot();
+            Warehouse w = order.getWarehouse();
+            return new DispatchRequest(order.getCode(), new Point(w.getOriginX(), w.getOriginY()),
+                    new Point(order.getDestX(), order.getDestY()));
+        });
+
+        RouteDto route = planner.plan(req.origin(), req.destination());
+        int eta = carrier.etaMinutes(req.code()).orElseGet(() -> {
+            etaFallback.increment();
+            return route.cost() * 2;
+        });
+
+        return writeTx.execute(status -> {
+            Order order = find(id);
+            checkCanDispatch(order);
+            Robot robot = pickRobot();
+            order.setStatus(OrderStatus.DISPATCHED);
+            order.setRobot(robot);
+            order.setEtaMinutes(eta);
+            robot.setStatus(RobotStatus.BUSY);
+            dispatched.increment();
+            events.publishAfterCommit(order.getId());
+            return OrderDto.from(order);
+        });
+    }
+
+    private static void checkCanDispatch(Order order) {
         if (!order.getStatus().canGoTo(OrderStatus.DISPATCHED)) {
             throw new ApiException(409, "Transición ilegal " + order.getStatus() + " → DISPATCHED");
         }
-        Robot robot = robots.findByStatusAndBatteryGreaterThanEqualOrderByIdAsc(RobotStatus.IDLE, MIN_BATTERY)
+    }
+
+    private Robot pickRobot() {
+        return robots.findByStatusAndBatteryGreaterThanEqualOrderByIdAsc(RobotStatus.IDLE, MIN_BATTERY)
                 .stream().findFirst()
                 .orElseThrow(() -> new ApiException(409, "No hay AMR disponible (libre y con batería ≥ " + MIN_BATTERY + "%)"));
-
-        Warehouse w = order.getWarehouse();
-        RouteDto route = planner.plan(new Point(w.getOriginX(), w.getOriginY()),
-                new Point(order.getDestX(), order.getDestY()));
-        int eta = carrier.etaMinutes(order.getCode()).orElse(route.cost() * 2);
-
-        order.setStatus(OrderStatus.DISPATCHED);
-        order.setRobot(robot);
-        order.setEtaMinutes(eta);
-        robot.setStatus(RobotStatus.BUSY);
-
-        dispatched.increment();
-        events.publishAfterCommit(order.getId());
-        return OrderDto.from(order);
     }
 
     /** Borrado físico permitido solo mientras el pedido no ha comprometido recursos (estado CREATED). */

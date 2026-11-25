@@ -1,14 +1,14 @@
 # Informe · Laboratorio API LOGISTPULSE
 
-**Desarrollo de Software Moderno · USFQ** · Daniel Salazar · noviembre de 2026
+**Desarrollo de Software Moderno · USFQ** · Daniel Salazar y Andretty Ochoa · noviembre de 2026
 Repositorio: <https://github.com/DanielSalazar0710/logistpulse-lab>
 
-Trabajé en el **Modo B (stack completo)**: API + Postgres + Redis + RabbitMQ + WireMock + Prometheus + Grafana con
-`docker compose`. No tengo JDK ni Maven instalados en mi equipo, así que las pruebas (`mvn test`) las corrí dentro del
+Trabajamos en el **Modo B (stack completo)**: API + Postgres + Redis + RabbitMQ + WireMock + Prometheus + Grafana con
+`docker compose`. No tenemos JDK ni Maven instalados en nuestro equipo, así que las pruebas (`mvn test`) las corrimos dentro del
 contenedor oficial `maven:3.9-eclipse-temurin-21`. Cada parte tiene un script en `scripts/lab/` que reproduce la
 demostración y las capturas están en la carpeta `evidencias/` de la entrega (también en el PDF).
 
-| Parte | Qué hice | Commits |
+| Parte | Qué hicimos | Commits |
 |---|---|---|
 | 0 | Recorrido, smoke test y pruebas base | `7e5a86d` |
 | 1 | `GET /api/robots/{id}`, `DELETE /api/orders/{id}`, mapper de validación (+ mapper de query params) | `f5b1218`, `9f4331a`, `8035ccd` |
@@ -60,17 +60,17 @@ no escanea `@Path` por su cuenta, así que ahí se registran explícitamente los
 `RobotResource`, …) y los `ExceptionMapper`. Con `spring.jersey.application-path=/` Jersey atiende `/api/**` y también
 `/actuator/**`. **Si olvido registrar un recurso**, la aplicación arranca sin errores, pero sus rutas responden **404**
 porque Jersey no las conoce. Si olvido un mapper, la excepción no se traduce y el cliente recibe un 500 (página HTML de
-Tomcat). Me pasó con los mappers nuevos: cada uno lo tuve que añadir en `JerseyConfig`.
+Tomcat). Nos pasó con los mappers nuevos: cada uno lo tuvimos que añadir en `JerseyConfig`.
 
 ## Parte 1 · Jersey / JAX-RS
 
 1. `GET /api/robots/{id}` → `RobotService.get` lanza `ApiException(404)` si no existe.
-2. `DELETE /api/orders/{id}` → 204 si está `CREATED`, 409 en cualquier otro estado y 404 si no existe. Solo permito
+2. `DELETE /api/orders/{id}` → 204 si está `CREATED`, 409 en cualquier otro estado y 404 si no existe. Solo permitimos
    borrar mientras el pedido no ha comprometido recursos (AMR, eventos).
 3. `ConstraintViolationMapper` → 400 con `fields: [{field, message, rejected}]`. El nombre del campo sale del último
-   nodo del `propertyPath` (`create.arg0.customer` → `customer`). Puse los mensajes de validación en español.
+   nodo del `propertyPath` (`create.arg0.customer` → `customer`). Pusimos los mensajes de validación en español.
 4. Extra: `ParamExceptionMapper`. JAX-RS responde **404** cuando un `@QueryParam` no se puede convertir
-   (`?status=FOO`), lo que confunde al cliente porque el recurso sí existe. Lo traduje a **400**.
+   (`?status=FOO`), lo que confunde al cliente porque el recurso sí existe. Lo tradujimos a **400**.
 
 Evidencia 02.
 
@@ -86,7 +86,7 @@ Evidencia 02.
 
 ## Parte 2 · JPA e Hibernate
 
-Con `spring.jpa.show-sql=true` medí `GET /api/orders?size=10` (script `parte2.sh`; excluyo los `count(robot)` que
+Con `spring.jpa.show-sql=true` medimos `GET /api/orders?size=10` (script `parte2.sh`; excluimos los `count(robot)` que
 dispara Prometheus cada 5 s al leer los gauges):
 
 | Variante | Consultas | Detalle |
@@ -101,7 +101,7 @@ porque el contexto de persistencia reutiliza entidades ya cargadas: el almacén 
 AMR. Con 100 pedidos y 50 AMR distintos serían 52 consultas por página. El `@EntityGraph` lo resuelve con un `join`
 en una sola consulta (evidencias 03 y 04).
 
-**Índice.** `@Table(indexes = @Index(name = "idx_orders_status", columnList = "status"))`. Lo justifico así: el filtro
+**Índice.** `@Table(indexes = @Index(name = "idx_orders_status", columnList = "status"))`. Lo justificamos así: el filtro
 más usado del listado es `?status=` y las invariantes de la flota se consultan por estado. La tabla solo crece (los
 `DELIVERED` no se borran) y sin índice cada filtro sería un recorrido completo de la tabla. La selectividad es buena
 para los estados "vivos" (`CREATED`, `DISPATCHED`, `IN_TRANSIT`), que son pocos frente al histórico. La búsqueda de
@@ -113,7 +113,7 @@ para los estados "vivos" (`CREATED`, `DISPATCHED`, `IN_TRANSIT`), que son pocos 
    `findByStatusAndCustomerNameContainingIgnoreCase`, también con `@EntityGraph` para no reintroducir el N+1.
 2. `?sort=campo,dir` validado contra una **lista blanca** (`id, code, customer, status, createdAt, eta`) que traduce el
    nombre público al de la entidad (`customer` → `customerName`). Si el campo no está en la lista, responde 400 con
-   los campos permitidos. Siempre agrego `id desc` como desempate para que la paginación sea estable. Los enlaces
+   los campos permitidos. Siempre agregamos `id desc` como desempate para que la paginación sea estable. Los enlaces
    `self/first/prev/next/last` conservan `status`, `customer` y `sort` (evidencia 05).
 
 **★ Grafo de estados con los enlaces que ofrece cada uno** (incluye `RETURNED` de la Parte 4):
@@ -137,12 +137,12 @@ ninguna transición. El cliente no necesita conocer la máquina de estados: solo
 **Reto · ¿por qué `size` se limita a 100 en el servicio y no solo en el recurso?** Porque el servicio es la frontera
 que protege la base de datos y la memoria, y tiene más de un cliente: el recurso REST, el `FleetListener`, pruebas o un
 futuro endpoint GraphQL o batch. Si el límite viviera solo en `OrderResource`, cualquier otro llamador podría pedir
-`size=1000000` y cargar la tabla entera. Es la regla de "validar en el dominio, no solo en el borde". Lo dejé como
+`size=1000000` y cargar la tabla entera. Es la regla de "validar en el dominio, no solo en el borde". Lo dejamos como
 constante pública `OrderService.MAX_PAGE_SIZE` y la demo muestra que `size=500` se aplica como 100.
 
 ## Parte 4 · Máquina de estados y concurrencia
 
-**4.1 `RETURNED`.** Añadí `RETURNED` (solo desde `DELIVERED`, terminal) y amplié `OrderStatusTest` con **5 casos
+**4.1 `RETURNED`.** Añadimos `RETURNED` (solo desde `DELIVERED`, terminal) y ampliamos `OrderStatusTest` con **5 casos
 nuevos** (9 en total): solo `DELIVERED` puede devolverse, `RETURNED` es terminal, no se puede volver a entregar ni
 cancelar, y ningún estado regresa a `CREATED`.
 
@@ -150,10 +150,10 @@ cancelar, y ningún estado regresa a `CREATED`.
 `violates check constraint "orders_status_check"` (evidencia 07). Hibernate 7 genera un `CHECK` con los valores del enum
 al crear la tabla, y `ddl-auto=update` **nunca modifica un CHECK existente**. El enum y la base quedaron
 desincronizados. Esto motivó el **proyecto de cierre con Flyway** (ver más abajo, ADR-001): `V2__estado_returned.sql`
-reemplaza el CHECK y además agregué `DataIntegrityMapper` para que una violación de integridad responda **409 en
+reemplaza el CHECK y además agregamos `DataIntegrityMapper` para que una violación de integridad responda **409 en
 JSON** y no una página HTML 500 (evidencia 08).
 
-**4.2 ★ Concurrencia.** Lancé dos despachos simultáneos del mismo pedido 5 veces (evidencia 06):
+**4.2 ★ Concurrencia.** Lanzamos dos despachos simultáneos del mismo pedido 5 veces (evidencia 06):
 
 - **Gana** la transacción que hace *commit* primero. El pedido queda `DISPATCHED` con su AMR.
 - **El perdedor** leyó el pedido con la misma `@Version` (0). Al hacer `UPDATE … WHERE id=? AND version=0` no actualiza
@@ -183,7 +183,7 @@ La evidencia 08 muestra a Postgres rechazando I1, I3 e I5 incluso con `UPDATE` d
 
 ## Parte 5 · Rutas A\*, Redis y métricas
 
-1. Comparé rutas en el plano (evidencia 09, dibujadas con `scripts/lab/plano.py`). Con costo 5, de (3,3) a (7,3) A\*
+1. Comparamos rutas en el plano (evidencia 09, dibujadas con `scripts/lab/plano.py`). Con costo 5, de (3,3) a (7,3) A\*
    **rodea** la zona por la fila 2 (costo 6) en vez de cruzarla (16). Hacia un destino dentro de la zona (5,4), entra por
    el borde más barato.
 2. **★ ¿Por qué el contador solo sube la primera vez?** `RoutePlanner.plan` tiene `@Cacheable("routes")` y el `Timer`
@@ -191,7 +191,7 @@ La evidencia 08 muestra a Postgres rechazando I1, I3 e I5 incluso con `UPDATE` d
    Redis con la clave `routes::0:0>10:5` (TTL 600 s). La segunda la resuelve el proxy de caché **sin entrar al
    método**, así que el Timer no se entera. Por eso `logistpulse_route_plan_seconds_count` cuenta cálculos reales, no
    peticiones.
-3. Cambié el costo de la zona a **2** (`WarehouseGrid.CONGESTED_COST`) y actualicé `AStarPathfinderTest`. Ahora de
+3. Cambiamos el costo de la zona a **2** (`WarehouseGrid.CONGESTED_COST`) y actualizamos `AStarPathfinderTest`. Ahora de
    (4,4) a (6,4) conviene **cruzar** (2+2 = 4) en lugar de rodear (5). Antes era al revés (10 contra 8).
    **★ ¿Sigue siendo admisible Manhattan?** Sí. Una heurística es admisible si nunca sobreestima el costo real. Cada paso
    cuesta como mínimo 1 y Manhattan cuenta exactamente el número mínimo de pasos, así que `h ≤ costo real` mientras
@@ -199,16 +199,16 @@ La evidencia 08 muestra a Postgres rechazando I1, I3 e I5 incluso con `UPDATE` d
    Manhattan diría 2. A\* podría devolver rutas no óptimas. La corrección es escalar la heurística por el costo mínimo:
    `h = 0,5 · Manhattan`.
 4. **Reto · diagonales.** `AStarPathfinder(grid, true)` usa 8 vecinos con costo `√2 · costo de la celda` y la
-   heurística **octil** `(dx+dy) + (√2−2)·min(dx,dy)`, admisible con costo mínimo 1. No permito "cortar esquinas": una
-   diagonal exige que las dos celdas ortogonales estén libres. Lo expuse como `GET /api/routes?…&diagonal=true`. De
-   (0,0) a (11,7) pasa de 18 pasos con costo 18 a 15 pasos con costo 16 (evidencia 11). Agregué 5 pruebas: costo √2 en
+   heurística **octil** `(dx+dy) + (√2−2)·min(dx,dy)`, admisible con costo mínimo 1. No permitimos "cortar esquinas": una
+   diagonal exige que las dos celdas ortogonales estén libres. Lo expusimos como `GET /api/routes?…&diagonal=true`. De
+   (0,0) a (11,7) pasa de 18 pasos con costo 18 a 15 pasos con costo 16 (evidencia 11). Agregamos 5 pruebas: costo √2 en
    piso abierto, nunca más caro que 4 vecinos, sin cortar esquinas, la heurística nunca sobreestima y la versión del
    plano.
-5. **Reto · la caché nunca se invalida.** Lo comprobé en vivo (evidencia 10): después de cambiar el costo a 2 y
+5. **Reto · la caché nunca se invalida.** Lo comprobamos en vivo (evidencia 10): después de cambiar el costo a 2 y
    redesplegar, Redis seguía devolviendo la ruta calculada con costo 5 (costo 8, rodeando). Solo al borrar la clave
    apareció la correcta (costo 4, cruzando). Estrategias:
    - **TTL** (ya existía, 10 min): acota cuánto dura el error, pero no lo evita.
-   - **Versión del plano en la clave** (lo implementé): `WarehouseGrid.version()` es una huella de las filas y de
+   - **Versión del plano en la clave** (lo implementamos): `WarehouseGrid.version()` es una huella de las filas y de
      `CONGESTED_COST`, y la clave queda `routes::300fc262:4:0:0>11:7`. Si cambia el plano o un costo, cambia la clave y
      las rutas viejas ya no se leen; el TTL las limpia después. No hace falta coordinar a nadie.
    - **`@CacheEvict(cacheNames="routes", allEntries=true)`** en la operación que edite el plano, cuando el plano sea
@@ -220,9 +220,9 @@ La evidencia 08 muestra a Postgres rechazando I1, I3 e I5 incluso con `UPDATE` d
 1. **★ `LP-SLOW…`**: WireMock tarda 5 s y `CarrierClient` corta a los 2 s (`setReadTimeout`). El ETA que queda es el
    **local**: `route.cost() * 2` = 9 · 2 = **18 min**. El log sí avisa:
    `WARN … Transportista no disponible para LP-SLOW…: I/O error … Request cancelled`. Pero el aviso solo quedaba en el
-   log. Agregué la métrica `logistpulse_carrier_fallback_total` para que la degradación se vea en Grafana (evidencia 12).
+   log. Agregamos la métrica `logistpulse_carrier_fallback_total` para que la degradación se vea en Grafana (evidencia 12).
 2. Con el transportista apagado: 200 en ~1 s (`connectTimeout` de 1 s) y ETA local (evidencia 12).
-3. **★ Trampa deliberada.** `dispatch` hacía la llamada HTTP dentro de la `@Transactional`. Lo medí en Postgres:
+3. **★ Trampa deliberada.** `dispatch` hacía la llamada HTTP dentro de la `@Transactional`. Lo medimos en Postgres:
    durante los 2 s de espera la conexión aparecía como **`idle in transaction`** (evidencia 12). Riesgos:
    - la conexión de Hikari queda retenida todo ese tiempo: con 10 conexiones en la pool bastan 10 despachos lentos
      para que el resto de la API espere conexión y falle por timeout (agotamiento de la pool);
@@ -237,7 +237,7 @@ La evidencia 08 muestra a Postgres rechazando I1, I3 e I5 incluso con `UPDATE` d
    **no hay ninguna transacción abierta** (evidencia 13).
 4. **Reto · reintentos.** `CarrierClient` reintenta **solo 5xx**, como máximo 2 veces con backoff exponencial (200 ms,
    400 ms). **No** reintenta 4xx (un error de la petición se repetiría igual) ni timeouts (ya costaron 2 s; reintentar
-   triplicaría la latencia y cargaría más a un servicio saturado). Lo probé con mappings nuevos de WireMock
+   triplicaría la latencia y cargaría más a un servicio saturado). Lo probamos con mappings nuevos de WireMock
    (evidencia 14):
 
    | Caso (código) | Llamadas al transportista | Resultado |
@@ -249,14 +249,14 @@ La evidencia 08 muestra a Postgres rechazando I1, I3 e I5 incluso con `UPDATE` d
 ## Parte 7 · Mensajería, consistencia y Outbox
 
 1. Flujo normal: `Evento order.dispatched publicado` → `Flota recibió order.dispatched` → `IN_TRANSIT` (evidencia 16).
-2. Para detener el consumidor sin tocar el código agregué `@RabbitListener(autoStartup = "${lab.fleet.auto-startup}")`
-   y lo controlo con la variable `FLEET_AUTO_STARTUP=false`. Despaché 3 pedidos: **3 mensajes `ready`, 0 consumidores** y
+2. Para detener el consumidor sin tocar el código agregamos `@RabbitListener(autoStartup = "${lab.fleet.auto-startup}")`
+   y lo controlamos con la variable `FLEET_AUTO_STARTUP=false`. Despachamos 3 pedidos: **3 mensajes `ready`, 0 consumidores** y
    3 pedidos `DISPATCHED` (evidencias 16 y 17). Al reactivarlo los procesó y la cola volvió a 0.
 3. **★ ¿Qué fallo evita `afterCommit` y cuál sigue existiendo?** Evita publicar un evento de algo que **no llegó a
    confirmarse**: si se publicara dentro de la transacción y luego hubiera *rollback*, la flota actuaría sobre un
    pedido que no está despachado (o que no existe). **Sigue existiendo** la ventana entre el commit y el envío. Si el
    proceso cae ahí o el broker no responde, el pedido queda `DISPATCHED` con su AMR ocupado y el evento se pierde para
-   siempre. Lo reproduje apagando RabbitMQ (evidencia 15): el cliente recibió **500**, pero el pedido quedó
+   siempre. Lo reprodujimos apagando RabbitMQ (evidencia 15): el cliente recibió **500**, pero el pedido quedó
    `DISPATCHED` con AMR-01 y **nunca** pasó a `IN_TRANSIT`. Es el peor caso: el cliente cree que falló y el sistema
    cree que sí ocurrió.
 4. **Outbox** (`V4__outbox.sql`, `OutboxEvent`, `OutboxRelay`). `DispatchEventPublisher.publish` ahora inserta una fila
@@ -264,31 +264,31 @@ La evidencia 08 muestra a Postgres rechazando I1, I3 e I5 incluso con `UPDATE` d
    cada 1 s toma los pendientes con `FOR UPDATE SKIP LOCKED` (seguro con varias réplicas), los publica con
    `messageId = outbox-N` y los marca `sent_at`. Con RabbitMQ caído (evidencia 18) el despacho responde **200**, el
    evento espera en la tabla (`logistpulse_outbox_pending = 1`) y, al volver el broker, el relay lo publica (en ese
-   caso, al intento 8) y el pedido pasa a `IN_TRANSIT`. Agregué `spring.rabbitmq.connection-timeout=2s`: sin eso, con
+   caso, al intento 8) y el pedido pasa a `IN_TRANSIT`. Agregamos `spring.rabbitmq.connection-timeout=2s`: sin eso, con
    el broker caído el relay quedaba bloqueado hasta 60 s.
    Compromiso: el relay publica dentro de su propia transacción para mantener el bloqueo de las filas; el envío a un
    broker local es rápido y está acotado por ese timeout.
 5. **★ Idempotencia.** Con Outbox la entrega es "**al menos una vez**": si el relay publica y cae antes de marcar
    `sent_at`, el evento se reenvía. **Hoy (antes del cambio)**, un `IN_TRANSIT` repetido hacía que `transition` lanzara
    "Transición ilegal IN_TRANSIT → IN_TRANSIT". El listener fallaba, el mensaje volvía a la cola y se reentregaba sin
-   fin: medí **2.991 entregas en 5 s** del mismo mensaje (evidencia 15), un *poison message* que consume CPU y llena el
+   fin: medimos **2.991 entregas en 5 s** del mismo mensaje (evidencia 15), un *poison message* que consume CPU y llena el
    log. **Solución:** `OrderService.startTransitIfDispatched` hace la transición **solo si el pedido sigue
    `DISPATCHED`** y devuelve `false` sin excepción si no. El listener confirma el mensaje, lo registra como duplicado y
    cuenta `logistpulse_fleet_duplicates_total`. Procesar el evento N veces deja el mismo resultado que procesarlo una.
-   Además, para errores que no son duplicados (un payload corrupto), configuré reintentos acotados del listener y
+   Además, para errores que no son duplicados (un payload corrupto), configuramos reintentos acotados del listener y
    `default-requeue-rejected=false` con una **dead-letter queue** `orders.dispatched.dlq`: el mensaje venenoso se intenta
    4 veces y queda aparcado en la DLQ, sin bucle (evidencia 18).
 
 ## Parte 8 · Observabilidad y "guerra de resiliencia"
 
-**Problemas que encontré en el dashboard entregado y corregí:**
+**Problemas que encontramos en el dashboard entregado y corregimos:**
 - El panel "HTTP: peticiones/s por estado" salía **vacío**: con Jersey, Spring Boot 4 no publica `http_server_requests`
-  a menos que esté `org.glassfish.jersey.ext:jersey-micrometer` en el classpath. Lo agregué al `pom.xml`.
+  a menos que esté `org.glassfish.jersey.ext:jersey-micrometer` en el classpath. Lo agregamos al `pom.xml`.
 - La serie "creados" del primer panel tampoco aparecía: el contador `logistpulse.orders.created` se exporta como
-  `logistpulse_orders_total`, porque Prometheus/OpenMetrics reserva el sufijo `_created`. Lo renombré a
+  `logistpulse_orders_total`, porque Prometheus/OpenMetrics reserva el sufijo `_created`. Lo renombramos a
   `logistpulse.orders.registered`.
 
-1. Generé carga (40 pedidos y 60 rutas aleatorias) y el dashboard la muestra (evidencias 19 y 20).
+1. Generamos carga (40 pedidos y 60 rutas aleatorias) y el dashboard la muestra (evidencias 19 y 20).
 2. **★ Flota agotada.** Al despachar el 6.º pedido con los 5 AMR ocupados se recibe **409** `"No hay AMR disponible
    (libre y con batería ≥ 20%)"`. Lo muestran el panel **"AMR libres" en 0** (y "AMR en misión" en 5) y la serie
    **409** del panel HTTP. Además, la alerta **`SinAMRLibres`** pasó a *firing* después de 1 minuto (evidencia 21).
@@ -309,11 +309,11 @@ La evidencia 08 muestra a Postgres rechazando I1, I3 e I5 incluso con `UPDATE` d
    200, pero tardaban ~9 s: con el contenedor apagado el nombre `redis` deja de resolverse en el DNS de Docker y cada
    lectura y escritura esperaba el timeout de la resolución. Segundo, `GuardedCache`: un **cortacircuitos** mínimo que,
    tras el primer fallo, deja de tocar Redis durante 15 s (la caché se comporta como vacía) y luego vuelve a probar.
-   La caché es una optimización: no puede tumbar los despachos. También bajé el `connection-timeout` de Hikari a 3 s
+   La caché es una optimización: no puede tumbar los despachos. También bajamos el `connection-timeout` de Hikari a 3 s
    para que, sin base de datos, la API falle rápido en lugar de colgar los hilos 30 s.
-4. Agregué el panel **"Latencia p95 por endpoint"** con
+4. Agregamos el panel **"Latencia p95 por endpoint"** con
    `histogram_quantile(0.95, sum by (le, method, uri) (rate(http_server_requests_seconds_bucket{uri=~"/api/.*"}[1m])))`
-   y activé `management.metrics.distribution.percentiles-histogram.http.server.requests=true`.
+   y activamos `management.metrics.distribution.percentiles-histogram.http.server.requests=true`.
 5. **★ SLOs** (también como reglas de alerta en `infra/prometheus/alerts.yml`):
 
    | SLO | Objetivo | PromQL (SLI) |
@@ -322,7 +322,7 @@ La evidencia 08 muestra a Postgres rechazando I1, I3 e I5 incluso con `UPDATE` d
    | Latencia del despacho | p95 < 500 ms (ventana de 5 min) | `histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{uri="/api/orders/{id}/dispatch"}[5m])))` |
    | Tiempo máximo en `DISPATCHED` | Ningún pedido más de 60 s en `DISPATCHED` | `max_over_time(logistpulse_orders_dispatched_oldest_age_seconds[5m]) < 60` |
 
-   Para el tercero no existía la métrica, así que la creé: columna `dispatched_at` (`V5__dispatched_at.sql`) y el gauge
+   Para el tercero no existía la métrica, así que la creamos: columna `dispatched_at` (`V5__dispatched_at.sql`) y el gauge
    `logistpulse_orders_dispatched_oldest_age_seconds`, la antigüedad del despacho más viejo que sigue en `DISPATCHED`.
    Es justo lo que habría delatado el evento perdido de la Parte 7.3, porque ese valor crece sin parar.
 6. **Reto.** Gauge `logistpulse_orders_by_status{status=…}` (panel "Pedidos por estado") y alerta **"AMR libres = 0
@@ -331,14 +331,14 @@ La evidencia 08 muestra a Postgres rechazando I1, I3 e I5 incluso con `UPDATE` d
 
 ## Parte 9 · Pruebas y contenedores
 
-1. **Postman.** Agregué tests a la colección y la corrí con **Newman** en Docker (evidencia 24):
+1. **Postman.** Agregamos tests a la colección y la corrimos con **Newman** en Docker (evidencia 24):
    - esquema `PageDto` del listado con `pm.response.to.have.jsonSchema` (código + esquema);
    - `Location` igual al `links.self` del pedido creado, con estado `CREATED` y enlace `dispatch`;
    - esquema del pedido despachado (AMR `^AMR-`, ETA ≥ 1 y sin enlace `dispatch`);
    - dos peticiones nuevas: validación 400 con la lista de campos y robot inexistente 404.
 2. **Mockito** (`OrderServiceTest`, 6 pruebas, sin Spring ni base de datos): sin robots → 409 *y no se llama al
    transportista*; pedido ya despachado → 409; transportista caído → ETA = `route.cost() * 2` y se cuenta el
-   *fallback*; ETA del transportista cuando responde; duplicado ignorado; lista blanca de orden. Agregué también
+   *fallback*; ETA del transportista cuando responde; duplicado ignorado; lista blanca de orden. Agregamos también
    `LabApplicationTests` con el **contexto completo de Spring** en modo lite: valida que las migraciones Flyway de H2
    coinciden con las entidades y que el despacho deja su evento en el outbox. Total: **29 pruebas, todas verdes**
    (evidencia 25).
@@ -348,15 +348,15 @@ La evidencia 08 muestra a Postgres rechazando I1, I3 e I5 incluso con `UPDATE` d
      JDK: pesa mucho menos, arranca y se descarga más rápido y tiene menos superficie de ataque.
    - **¿Qué se cachea con `dependency:go-offline`?** Se copia primero solo el `pom.xml` y se descargan todas las
      dependencias en una capa propia. Docker reutiliza esa capa mientras el `pom.xml` no cambie, así que al editar solo
-     código fuente no se vuelve a bajar nada. Lo comprobé: cada *rebuild* de la API tardó ~1 min, y solo los que
+     código fuente no se vuelve a bajar nada. Lo comprobamos: cada *rebuild* de la API tardó ~1 min, y solo los que
      cambiaron el `pom.xml` (Flyway, jersey-micrometer) volvieron a descargar.
    - **¿Por qué `USER appuser`?** Para no ejecutar la JVM como root. Si alguien explota una vulnerabilidad de la
      aplicación, obtiene un usuario sin privilegios dentro del contenedor y le cuesta más escalar al host o a otros
      contenedores (principio de mínimo privilegio).
-4. **Reto · healthcheck.** La guía asume que la imagen JRE no trae `curl`. Lo revisé y la versión actual de
-   `eclipse-temurin:21-jre` **sí** trae `curl` y `wget` (evidencia 26), pero no quise depender de eso: una imagen más
-   mínima (Alpine, *distroless*) los quitaría. Solo uso `bash`: `/dev/tcp` abre el socket y envío una petición HTTP/1.0
-   a mano. Apunto a **`/actuator/health/liveness`** (activé las *probes*) y no a
+4. **Reto · healthcheck.** La guía asume que la imagen JRE no trae `curl`. Lo revisamos y la versión actual de
+   `eclipse-temurin:21-jre` **sí** trae `curl` y `wget` (evidencia 26), pero no quisimos depender de eso: una imagen más
+   mínima (Alpine, *distroless*) los quitaría. Solo usamos `bash`: `/dev/tcp` abre el socket y enviamos una petición HTTP/1.0
+   a mano. Apuntamos a **`/actuator/health/liveness`** (activamos las *probes*) y no a
    `/actuator/health`, porque si Redis o RabbitMQ caen la API sigue viva y no debe marcarse *unhealthy* ni reiniciarse
    por una dependencia externa. Prometheus ahora espera `condition: service_healthy` (evidencia 26).
 
@@ -368,8 +368,8 @@ La evidencia 08 muestra a Postgres rechazando I1, I3 e I5 incluso con `UPDATE` d
   tabla no incluía el nuevo valor y `ddl-auto=update` nunca lo actualiza. Además, las invariantes de la Parte 4.3 solo
   vivían en el código Java.
 - **Decisión.** El esquema lo gobierna **Flyway** (`db/migration/{vendor}`, con scripts para PostgreSQL y para H2) y
-  Hibernate pasa a `ddl-auto=validate`. Para la base que ya existía uso `baseline-on-migrate` con `baseline-version=1`:
-  se marca como V1 sin ejecutarla y se aplican V2 en adelante. Lo probé sobre mis datos reales sin perder nada
+  Hibernate pasa a `ddl-auto=validate`. Para la base que ya existía usamos `baseline-on-migrate` con `baseline-version=1`:
+  se marca como V1 sin ejecutarla y se aplican V2 en adelante. Lo probamos sobre nuestros datos reales sin perder nada
   (evidencia 08).
 
   | Versión | Contenido |
@@ -399,6 +399,6 @@ La evidencia 08 muestra a Postgres rechazando I1, I3 e I5 incluso con `UPDATE` d
 
 ## Uso de IA
 
-Usé Claude Code como apoyo durante el laboratorio: para levantar el entorno en Docker, revisar el código, implementar y
-depurar los cambios, automatizar las capturas y redactar este informe. Revisé y ejecuté cada cambio y cada prueba en mi
+Usamos Claude Code como apoyo durante el laboratorio: para levantar el entorno en Docker, revisar el código, implementar y
+depurar los cambios, automatizar las capturas y redactar este informe. Revisamos y ejecutamos cada cambio y cada prueba en nuestro
 equipo; las evidencias son capturas reales de esas ejecuciones.
